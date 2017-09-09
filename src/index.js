@@ -1,5 +1,6 @@
 const contentful = require('contentful');
 const redis = require('redis');
+const redisHelper = require('../redis-promise-wrapper');
 
 const ContentfulRedisError = require('./wrapper-error');
 
@@ -10,7 +11,6 @@ class ContentfulRedisWrapper {
     // check for missing options
     this.requiredArgs = ['space', 'accessToken'];
     this.missingArgs = this.requiredArgs.filter(arg => (!(arg in ContentfulRedisOptions)));
-    console.log(this.missingArgs);
 
     // throw an error if we don't have all of the options
     if (this.missingArgs.length > 0) {
@@ -43,14 +43,45 @@ class ContentfulRedisWrapper {
     // firstly, contentful
     this.sync = this.contentful.sync.bind(this);
 
-    Promise.resolve(this.init());
+    // then, redis
+    this.setKey = redisHelper.setKey.bind(this);
+    this.getByKey = redisHelper.getByKey.bind(this);
+    // this.delKey = redisHelper.delKey.bind(this);
+    this.delKeys = redisHelper.delKeys.bind(this);
+
+    // make sure to init() before doing anything else
+    Promise.resolve(this.snyc());
   }
 
-  async init() {
-    const resp = await (this.sync({ initial: this.initialSync }));
-    this.initialSync = false;
-    this.nextSyncToken = await resp.nextSyncToken;
-    console.log(resp);
+  // if it's the initial sync, don't bother with getting the token
+  // else, use that token
+  async sync() {
+    let resp;
+    if (this.initialSync) {
+      resp = await this.sync({ initial: this.initialSync });
+    } else {
+      const nextSyncToken = await this.getByKey('contentful:syncToken');
+      resp = await this.sync({ nextSyncToken });
+      this.setKey('contentfulSyncToken', resp.nextSyncToken);
+    }
+    const deletedItems = resp.deletedEntries;
+    const newItems = resp.entries;
+    // delete the everything old from the response
+    const keysToDelete = deletedItems.map(del => del.sys.id).map(this.formatKey);
+    Promise.all(this.delKeys(keysToDelete));
+    // format and store the (new) results
+
+    // handle any links/references
+  }
+
+  static formatKey(entry) {
+    const id = entry.sys.id;
+    // todo: figure out how to store content type
+    return `contentful:entry:${id}`;
+  }
+
+  static handleReferences(entry) {
+    console.log(entry);
   }
 }
 
