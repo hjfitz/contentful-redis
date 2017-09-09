@@ -1,0 +1,14 @@
+{
+  "name": "contentful-redis",
+  "version": "0.0.0",
+  "description": "Redit wrapper for Contentful",
+  "main": "src/index.js",
+  "repository": "https://github.com/hjfitz/contentful-redis",
+  "author": "Harry <hfitz83@gmail.com>",
+  "license": "GPL-2.0",
+  "dependencies": {
+    "chalk": "^2.1.0",
+    "contentful": "^4.6.1",
+    "redis": "^2.8.0"
+  }
+}
