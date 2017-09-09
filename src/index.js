@@ -46,7 +46,8 @@ class ContentfulRedisWrapper {
     // then, redis
     this.setKey = redisHelper.setKey.bind(this);
     this.getByKey = redisHelper.getByKey.bind(this);
-    // this.delKey = redisHelper.delKey.bind(this);
+    this.getKeys = redisHelper.getKeys.bind(this);
+    this.delKey = redisHelper.delKey.bind(this);
     this.delKeys = redisHelper.delKeys.bind(this);
 
     // make sure to init() before doing anything else
