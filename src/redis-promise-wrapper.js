@@ -21,19 +21,24 @@ const getByKey = key => new Promise((res, rej) => {
   });
 });
 
-const delKey = key => new Promise((res) => {
+const delKey = key => new Promise(res => {
   this.store.del(key, res);
 });
 
-const delKeys = keys => {
-  const promises = [];
-  keys.forEach(key => promises.push(delKey(key)));
-  return promises;
-};
+const getKeys = () => new Promise((res, rej) => {
+  this.store.keys(key, (err, replies) => {
+    if (err) rej(err);
+    res(keys);
+  });
+});
+
+// map this.delKey to our keys, as it's bound to the same obj
+const delKeys = keys => keys.map(this.delKey);
 
 module.exports = {
   setKey,
   getByKey,
+  getKeys,
   delKey,
   delKeys,
 };
