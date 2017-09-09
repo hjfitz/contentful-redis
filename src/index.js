@@ -1,8 +1,9 @@
 const contentful = require('contentful');
 const redis = require('redis');
-const redisHelper = require('../redis-promise-wrapper');
 
+const redisHelper = require('./redis-promise-wrapper');
 const ContentfulRedisError = require('./wrapper-error');
+const log = require('./logger')('[CONTENTFUL]');
 
 class ContentfulRedisWrapper {
   constructor(ContentfulRedisOptions) {
@@ -37,21 +38,21 @@ class ContentfulRedisWrapper {
     };
 
     // create a connection to redis
-    // this.store = redis.createClient(this.redisOpts);
+    this.store = redis.createClient(this.redisOpts);
 
     // bind functions we'll use to this class
     // firstly, contentful
-    this.sync = this.contentful.sync.bind(this);
+    this.pureSync = this.contentful.sync.bind(this);
 
-    // then, redis
-    this.setKey = redisHelper.setKey.bind(this);
+    // then, redis promise wrappers
+    this.setKey   = redisHelper.setKey.bind(this);
     this.getByKey = redisHelper.getByKey.bind(this);
-    this.getKeys = redisHelper.getKeys.bind(this);
-    this.delKey = redisHelper.delKey.bind(this);
-    this.delKeys = redisHelper.delKeys.bind(this);
+    this.getKeys  = redisHelper.getKeys.bind(this);
+    this.delKey   = redisHelper.delKey.bind(this);
+    this.delKeys  = redisHelper.delKeys.bind(this);
 
     // make sure to init() before doing anything else
-    Promise.resolve(this.snyc());
+    Promise.resolve(this.sync());
   }
 
   // if it's the initial sync, don't bother with getting the token
@@ -59,21 +60,24 @@ class ContentfulRedisWrapper {
   async sync() {
     let resp;
     if (this.initialSync) {
-      resp = await this.sync({ initial: this.initialSync });
+      log('Beginning initial sync in src/index.js@sync()');
+      resp = await this.pureSync({ initial: this.initialSync });
+      this.initialSync = false;
     } else {
+      log('Syncing using token in src/index.js@sync()');
       const nextSyncToken = await this.getByKey('contentful:syncToken');
-      resp = await this.sync({ nextSyncToken });
+      resp = await this.pureSync({ nextSyncToken });
+      log(`Setting next sync token '${resp.nextSyncToken} in src/index.js@sync()`);
       this.setKey('contentfulSyncToken', resp.nextSyncToken);
     }
-    const deletedItems = resp.deletedEntries;
-    const newItems = resp.entries;
+    log('Sync complete');
+    const deletedEntries = await resp.deletedEntries;
+    const newEntries = await resp.entries;
     // delete the everything old from the response
-    const keysToDelete = deletedItems.map(del => del.sys.id).map(this.formatKey);
-    Promise.all(this.delKeys(keysToDelete));
-    // format and store the (new) results
-
-    // handle any links/references
-  }
+    if (deletedEntries.length > 0) await handleDeletions(deletedEntries)
+    // format and store the (new) entries
+    if (newEntries.length > 0) await handleEntries(newEntries);
+   }
 
   static formatKey(entry) {
     const id = entry.sys.id;
@@ -81,9 +85,20 @@ class ContentfulRedisWrapper {
     return `contentful:entry:${id}`;
   }
 
-  static handleReferences(entry) {
-    console.log(entry);
+  async handleDeletions(deletedEntries) {
+    log(`Formatting ${deletedEntries.length} items for deletion`);
+    const keysToDelete = deletedEntries.map(del => del.sys.id).map(this.formatKey);
+    log('Attempting to delete items from Redis in src/index.js@handleDeletions()');
+    Promise.all(this.delKeys(keysToDelete));
   }
+
+  async handleEntries(newItems) {}
+
+  static handleReferences(entry) {}
+
+  async getEntry(entryOptions) {}
+
+  async getEntries(entryOptions) {}
 }
 
 module.exports = ContentfulRedisWrapper;
