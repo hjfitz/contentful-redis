@@ -103,26 +103,36 @@ class ContentfulRedisWrapper {
    * @param {Array<Object>} newItems New items to format and store
    */
   async handleEntries(newItems) {
+    log('Entering in src/index.js@handleEntries()');
     newItems.forEach(item => {
-      if (item.sys.contentType.sys.id === 'committee') {
-        Object.keys(item.fields).forEach(key => {
-          Object.keys(item.fields[key]).forEach(locale => {
-            const content = item.fields[key][locale];
-            if (Array.isArray(content) && 'sys' in content[0]) {
-              delete item.fields[key][locale];
-              item.fields[key][locale] = this.handleReferences(content);
-            }
-          });
+      Object.keys(item.fields).forEach(key => {
+        log('Attempting to format by locale in src/index.js@handleEntries()');
+        // We make way for locales - to enable users to deliver to different parts of the world
+        Object.keys(item.fields[key]).forEach(locale => {
+          const content = item.fields[key][locale];
+          // we can be sure that there is a link if the field contains 'sys'
+          if (Array.isArray(content) && 'sys' in content[0]) {
+            log('Attempting to delete old entries and replace with key reference in src/index.js@handleEntries()');
+            // delete the old entry because it's immutable
+            delete item.fields[key][locale];
+            item.fields[key][locale] = ContentfulRedisWrapper.handleReferences(content);
+            log('Formatted entries in src/index.js@handleEntries()');
+          }
         });
-      }
+      });
+      // generate a key and store it in the store!
+      const key = ContentfulRedisWrapper.formatKey({ id: item.sys.id });
+      log('Attempting to store entries in src/index.js@handleEntries()');
+      Promise.resolve(this.setKey(key, item)).then(() => {
+        log('Entries stored. src/index.js@handleEntries()');
+      }).catch(err => {
+        log('Error storing entries. src/index.js@handleEntries()');
+        console.error(err);
+      });
     });
-
-    // format the keys
-    // handle + format the references
-    // store in redis
   }
 
-  handleReferences(content) {
+  static handleReferences(content) {
     // first, get the IDs
     const contentIDs = content.map(contentItem => contentItem.sys.id);
     // then, give them a key, letting them know they're a reference
