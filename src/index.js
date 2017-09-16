@@ -117,8 +117,12 @@ class ContentfulRedisWrapper {
           // if it's a reference, we need to attempt to replace these
           if (isReference) {
             const keys = item.fields[field][locale].map(innerLinks => innerLinks.sys.id);
-            const redisKeys = keys.map(id => ({ locale, ref: ContentfulRedisWrapper.formatKey({ id }) }));
-            item.fields[field].references = redisKeys;
+            const redisKeys = keys.map(id => ContentfulRedisWrapper.formatKey({ id }));
+            const newRefs = {
+              [locale]: redisKeys,
+            };
+            item.fields[field].references = newRefs;
+            delete item.fields[field][locale];
           }
         });
       });
@@ -159,17 +163,23 @@ class ContentfulRedisWrapper {
     const hierarchy = await Promise.all(allPromises);
     hierarchy.forEach(item => {
       log('Attempting to retrieve links per locale in src/index.js@getEntries()');
-      Object.keys(item.fields).forEach(field => {
+      Object.keys(item.fields).forEach(async field => {
         // We make way for locales - to enable users to deliver to different parts of the world
-        Object.keys(item.fields[field]).forEach(async locale => {
-          // we can be sure that there is a link if the field contains 'sys'
-          if ('references' in item.fields[field]) {
+        // Object.keys(item.fields[field]).forEach(async locale => {
+        // we can be sure that there is a link if the field contains 'sys'
+        if ('references' in item.fields[field]) {
+          const references = item.fields[field].references;
+          // set item.fields[field] to what the references correspond to
+          // set the locale, too
+          // we've got a reference, so go through it's locales
 
-            // LEFT OFF
-            // working on joining our REFERENCES with item.fields[field][locale]
-
-          }
-        });
+          await Object.keys(item.fields[field].references).forEach(async refLocale => {
+            const refPromises = item.fields[field].references[refLocale].map(this.getByKey);
+            const referees = await Promise.all(refPromises);
+            item.fields[field][refLocale] = referees;
+            delete item.fields[field].references[refLocale];
+          });
+        }
       });
     });
     return hierarchy;
