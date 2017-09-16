@@ -25,7 +25,7 @@ class ContentfulRedisWrapper {
     });
 
     /*
-     * Yhe contentful sync api is used, for less strain
+     * The contentful sync api is used, for less strain
      * This is the constructor, so there's been no sync yet.
      * later on, the nextSyncToken is stored here.
      */
@@ -45,11 +45,11 @@ class ContentfulRedisWrapper {
     this.pureSync = this.contentful.sync.bind(this);
 
     // then, redis promise wrappers
-    this.setKey   = redisHelper.setKey.bind(this);
+    this.setKey = redisHelper.setKey.bind(this);
     this.getByKey = redisHelper.getByKey.bind(this);
-    this.getKeys  = redisHelper.getKeys.bind(this);
-    this.delKey   = redisHelper.delKey.bind(this);
-    this.delKeys  = redisHelper.delKeys.bind(this);
+    this.getKeys = redisHelper.getKeys.bind(this);
+    this.delKey = redisHelper.delKey.bind(this);
+    this.delKeys = redisHelper.delKeys.bind(this);
 
     // make sure to init() before doing anything else
     Promise.resolve(this.sync());
@@ -67,17 +67,16 @@ class ContentfulRedisWrapper {
       log('Syncing using token in src/index.js@sync()');
       const nextSyncToken = await this.getByKey('contentful:syncToken');
       resp = await this.pureSync({ nextSyncToken });
-      log(`Setting next sync token '${resp.nextSyncToken} in src/index.js@sync()`);
-      this.setKey('contentfulSyncToken', resp.nextSyncToken);
     }
+    log('Setting next sync token in src/index.js@sync()');
+    this.setKey('contentful:syncToken', resp.nextSyncToken);
     log('Sync complete');
-    const deletedEntries = await resp.deletedEntries;
-    const newEntries = await resp.entries;
+    const { deletedEntries, entries: newEntries } = await resp;
     // delete the everything old from the response
-    if (deletedEntries.length > 0) await handleDeletions(deletedEntries)
+    if (deletedEntries.length > 0) await this.handleDeletions(deletedEntries);
     // format and store the (new) entries
-    if (newEntries.length > 0) await handleEntries(newEntries);
-   }
+    if (newEntries.length > 0) await this.handleEntries(newEntries);
+  }
 
   static formatKey(entry) {
     const id = entry.sys.id;
@@ -92,7 +91,11 @@ class ContentfulRedisWrapper {
     Promise.all(this.delKeys(keysToDelete));
   }
 
-  async handleEntries(newItems) {}
+  async handleEntries(newItems) {
+    // format the keys
+    // handle + format the references
+    // store in redis
+  }
 
   static handleReferences(entry) {}
 

@@ -7,38 +7,43 @@
  * this.store is the redis instance created within it
  */
 
-const setKey = key => new Promise((res, rej) => {
-  this.store.set(key, (err, reply) => {
-    if (err) rej(err);
-    res(reply);
-  });
-});
-
-const getByKey = key => new Promise((res, rej) => {
-  this.store.get(key, (err, reply) => {
-    if (err) rej(err);
-    res(reply);
-  });
-});
-
-const delKey = key => new Promise(res => {
-  this.store.del(key, res);
-});
-
-const getKeys = () => new Promise((res, rej) => {
-  this.store.keys(key, (err, replies) => {
-    if (err) rej(err);
-    res(keys);
-  });
-});
-
-// map this.delKey to our keys, as it's bound to the same obj
-const delKeys = keys => keys.map(this.delKey);
-
 module.exports = {
-  setKey,
-  getByKey,
-  getKeys,
-  delKey,
-  delKeys,
+  setKey(key, val) {
+    return new Promise((res, rej) => {
+      const formattedVal = JSON.stringify(val);
+      this.store.set(key, formattedVal, (err, reply) => {
+        if (err) rej(err);
+        res(reply);
+      });
+    });
+  },
+
+  getByKey(key) {
+    return new Promise((res, rej) => {
+      this.store.get(key, (err, reply) => {
+        if (err) rej(err);
+        res(JSON.parse(reply));
+      });
+    });
+  },
+
+  delKey(key) {
+    return new Promise(res => {
+      this.store.del(key, res);
+    });
+  },
+
+  getKeys(key) {
+    return new Promise((res, rej) => {
+      this.store.keys(key, (err, replies) => {
+        if (err) rej(err);
+        res(replies);
+      });
+    });
+  },
+
+  // map this.delKey to our keys, as it's bound to the same obj
+  delKeys(keys) {
+    keys.map(this.delKey);
+  },
 };
