@@ -3,6 +3,7 @@ const redis = require('redis');
 
 const redisHelper = require('./redis-promise-wrapper');
 const ContentfulRedisError = require('./wrapper-error');
+const util = require('./util');
 const log = require('./logger')('[CONTENTFUL]');
 
 class ContentfulRedisWrapper {
@@ -50,7 +51,6 @@ class ContentfulRedisWrapper {
     this.getKeys = redisHelper.getKeys.bind(this);
     this.delKey = redisHelper.delKey.bind(this);
     this.delKeys = redisHelper.delKeys.bind(this);
-    this.handleReferences = this.handleReferences.bind(this);
 
     // make sure to init() before doing anything else
     Promise.resolve(this.sync());
@@ -107,23 +107,22 @@ class ContentfulRedisWrapper {
   handleEntries(newItems) {
     log('Entering in src/index.js@handleEntries()');
     newItems.forEach(item => {
+      // iterate through the fields
       Object.keys(item.fields).forEach(field => {
-        log('Attempting to format by locale in src/index.js@handleEntries()');
-        // We make way for locales - to enable users to deliver to different parts of the world
-        Object.keys(item.fields[field]).forEach(async locale => {
-          const content = item.fields[field][locale];
-          // we can be sure that there is a link if the field contains 'sys'
-          if (Array.isArray(content) && 'sys' in content[0]) {
-            log('Attempting to delete old entries and replace with key reference in src/index.js@handleEntries()');
-            // delete the old entry because it's immutable
-            const formattedRef = await this.handleReferences(content, true);
-            item.fields.contentfulRef = field;
-            item.fields.contentfulRef[field] = formattedRef;
-            console.log(item.fields[field]);
-            log('Formatted entries in src/index.js@handleEntries()');
+        // dive in to the locales
+        Object.keys(item.fields[field]).forEach(locale => {
+          // we know we have a reference, IF the field (and it's locales) are an array
+          // and IF it's a getter - contentful does this to reduce traffic - at the expense of a bit of computing power
+          const isReference = Array.isArray(item.fields[field][locale]) && util.isGetter(item.fields[field], locale);
+          // if it's a reference, we need to attempt to replace these
+          if (isReference) {
+            const keys = item.fields[field][locale].map(innerLinks => innerLinks.sys.id);
+            const redisKeys = keys.map(id => ({ locale, ref: ContentfulRedisWrapper.formatKey({ id }) }));
+            item.fields[field].references = redisKeys;
           }
         });
       });
+
       // generate a key and store it in the store!
       const key = ContentfulRedisWrapper.formatKey({ id: item.sys.id });
       log(`Attempting to store ${newItems.length} entries in src/index.js@handleEntries()`);
@@ -140,26 +139,17 @@ class ContentfulRedisWrapper {
    * Handle the references. If we're storing data, format it correctly.
    * Else, get the references from redis
    * @param {Array<Object>} content should be a list of fields
-   * @param {Bool} storage Whether we're storing or remaking the data
    */
-  async handleReferences(content, storage) {
-    if (storage) {
-    // first, get the IDs
-      const contentIDs = content.map(contentItem => contentItem.sys.id);
-      // then, give them a key, letting them know they're a reference
-      // and format them, for redis
-      const refMap = contentIDs.map(id => ({
-        contentfulRef: ContentfulRedisWrapper.formatKey({ id }),
-      }));
-      return refMap;
-    }
-    const datastoreKeys = content.map(contentItem => contentItem.contentfulRef);
-    const promises = datastoreKeys.map(this.getByKey);
-    const data = await Promise.all(promises);
-    // console.log(data);
-    return data;
+  async handleReferences(content) {
+    // const { references } = content;
+    // const datastoreKeys = content.map(contentItem => contentItem.contentfulRef);
+    // console.log(references);
+    // const promises = datastoreKeys.map(this.getByKey);
+    // const data = await Promise.all(promises);
+    // return data;
   }
 
+  // todo
   async getEntry(entryOptions) {}
 
   async getEntries() {
@@ -168,25 +158,19 @@ class ContentfulRedisWrapper {
     const allPromises = allKeys.map(hierItem => this.getByKey(hierItem));
     const hierarchy = await Promise.all(allPromises);
     hierarchy.forEach(item => {
-      if (item.sys.contentType.sys.id === 'committee') {
-        console.log(item);
-        log('Attempting to retrieve links per locale in src/index.js@getEntries()');
-        Object.keys(item.fields).forEach(field => {
-          // We make way for locales - to enable users to deliver to different parts of the world
-          Object.keys(item.fields[field]).forEach(locale => {
-            const content = item.fields[field][locale];
-            // we can be sure that there is a link if the field contains 'sys'
-            if (Array.isArray(content) && 'contentfulRef' in content[0]) {
-              log('Attempting to delete old entries and replace with key data in src/index.js@getEntries()');
-              // delete the old entry because it's immutable
-              delete item.fields[field][locale];
-              console.log(this.handleReferences(content, false));
-              item.fields[field][locale] = this.handleReferences(content, false);
-              log('Formatted entries in src/index.js@getEntries()');
-            }
-          });
+      log('Attempting to retrieve links per locale in src/index.js@getEntries()');
+      Object.keys(item.fields).forEach(field => {
+        // We make way for locales - to enable users to deliver to different parts of the world
+        Object.keys(item.fields[field]).forEach(async locale => {
+          // we can be sure that there is a link if the field contains 'sys'
+          if ('references' in item.fields[field]) {
+
+            // LEFT OFF
+            // working on joining our REFERENCES with item.fields[field][locale]
+
+          }
         });
-      }
+      });
     });
     return hierarchy;
   }
