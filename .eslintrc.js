@@ -7,5 +7,6 @@ module.exports = {
     "rules": {
         "prefer-destructuring": 0,
         "arrow-parens": [2, "as-needed"],
+        "no-param-reassign": [2, { props: false }],
     },
 };

@@ -78,10 +78,10 @@ class ContentfulRedisWrapper {
     if (newEntries.length > 0) await this.handleEntries(newEntries);
   }
 
-  static formatKey(entry) {
-    const id = entry.sys.id;
+  static formatKey(args) {
+    const entryID = args.id || args.entry.sys.id;
     // todo: figure out how to store content type
-    return `contentful:entry:${id}`;
+    return `contentful:entry:${entryID}`;
   }
 
   async handleDeletions(deletedEntries) {
@@ -91,13 +91,47 @@ class ContentfulRedisWrapper {
     Promise.all(this.delKeys(keysToDelete));
   }
 
+  /**
+   * Contentful gives us a load of awesome new stuff to store
+   * To save space and ensure that there are no redundant stores
+   * (ie Contentful gives us an two entries, one has a link to the other)
+   * The link is deleted, and replaced with the key that we know we'll store
+   * This is completed by traversing the response down to the fields
+   * If we know there's a 'sys' item there, we must handle the reference
+   *
+   * After the referencing is handled, all of this is stored!
+   * @param {Array<Object>} newItems New items to format and store
+   */
   async handleEntries(newItems) {
+    newItems.forEach(item => {
+      if (item.sys.contentType.sys.id === 'committee') {
+        Object.keys(item.fields).forEach(key => {
+          Object.keys(item.fields[key]).forEach(locale => {
+            const content = item.fields[key][locale];
+            if (Array.isArray(content) && 'sys' in content[0]) {
+              delete item.fields[key][locale];
+              item.fields[key][locale] = this.handleReferences(content);
+            }
+          });
+        });
+      }
+    });
+
     // format the keys
     // handle + format the references
     // store in redis
   }
 
-  static handleReferences(entry) {}
+  handleReferences(content) {
+    // first, get the IDs
+    const contentIDs = content.map(contentItem => contentItem.sys.id);
+    // then, give them a key, letting them know they're a reference
+    // and format them, for redis
+    const refMap = contentIDs.map(id => ({
+      contentfulRef: ContentfulRedisWrapper.formatKey({ id }),
+    }));
+    return refMap;
+  }
 
   async getEntry(entryOptions) {}
 

@@ -1,11 +1,7 @@
 const chalk = require('chalk');
 
-const print = (prefix, msg) => {
-    return (msg) => {
-        // if (process.env.DEBUG === 'true') {
-            console.log(`${prefix} ${msg}`);
-        // }
-    }
-}
+const print = (prefix, msg) => msg => {
+  console.log(`${chalk.yellow(prefix)} ${msg}`);
+};
 
 module.exports = print;
