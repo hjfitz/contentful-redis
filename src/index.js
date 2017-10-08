@@ -80,17 +80,29 @@ class ContentfulRedisWrapper {
     if (newEntries.length > 0) await this.handleEntries(newEntries);
   }
 
-  static formatKey(args) {
-    const entryID = args.id || args.entry.sys.id;
+  /**
+   * Get the ID and format it, for storage in redis
+   * @param {Object} entry A contentful entry to store
+   * @return {String} a formatted key
+   */
+  static formatKey(entry) {
+    const entryID = entry.id || entry.entry.sys.id;
     // todo: figure out how to store content type
     return `contentful:entry:${entryID}`;
   }
 
+  /**
+   * Given a list of deleted entries, delete those entries from redis
+   * @param {Array} deletedEntries entries for deletion
+   */
   async handleDeletions(deletedEntries) {
     log(`Formatting ${deletedEntries.length} items for deletion`);
-    const keysToDelete = deletedEntries.map(del => del.sys.id).map(this.formatKey);
+    const keysToDelete =
+      deletedEntries
+        .map(del => del.sys.id)
+        .map(this.formatKey);
     log('Attempting to delete items from Redis in src/index.js@handleDeletions()');
-    Promise.all(this.delKeys(keysToDelete));
+    await Promise.all(this.delKeys(keysToDelete));
   }
 
   /**
@@ -118,9 +130,7 @@ class ContentfulRedisWrapper {
           if (isReference) {
             const keys = item.fields[field][locale].map(innerLinks => innerLinks.sys.id);
             const redisKeys = keys.map(id => ContentfulRedisWrapper.formatKey({ id }));
-            const newRefs = {
-              [locale]: redisKeys,
-            };
+            const newRefs = { [locale]: redisKeys };
             item.fields[field].references = newRefs;
             delete item.fields[field][locale];
           }
@@ -156,16 +166,23 @@ class ContentfulRedisWrapper {
   // todo
   async getEntry(entryOptions) { }
 
+  /**
+   * 1. Get all of the entries from redis
+   * 2. Go through all of those fields, and retrieve their references
+   * 3. Recur through the references and handle their references - TODO?
+   */
   async getEntries() {
     log('Entering src/index.js@getEntries()');
+    // get all keys, and then get data from redis based on these
     const allKeys = await this.getKeys('contentful:*');
     const allPromises = allKeys.map(hierItem => this.getByKey(hierItem));
     const hierarchy = await Promise.all(allPromises);
-    const promises = [];
-    // hierarchy.forEach(item => {
+
+    // attempt to resolve links
     for (const item of hierarchy) {
       log('Attempting to retrieve links per locale in src/index.js@getEntries()');
       const fields = Object.keys(item.fields);
+      // go through the fields. If a 'reference' field exists, handle that reference
       for (const field of fields) {
         // if we've set a reference, we'll rectify it for every locale
         if ('references' in item.fields[field]) {
