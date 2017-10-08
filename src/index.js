@@ -154,34 +154,34 @@ class ContentfulRedisWrapper {
   }
 
   // todo
-  async getEntry(entryOptions) {}
+  async getEntry(entryOptions) { }
 
   async getEntries() {
     log('Entering src/index.js@getEntries()');
     const allKeys = await this.getKeys('contentful:*');
     const allPromises = allKeys.map(hierItem => this.getByKey(hierItem));
     const hierarchy = await Promise.all(allPromises);
-    hierarchy.forEach(item => {
+    const promises = [];
+    // hierarchy.forEach(item => {
+    for (const item of hierarchy) {
       log('Attempting to retrieve links per locale in src/index.js@getEntries()');
-      Object.keys(item.fields).forEach(async field => {
-        // We make way for locales - to enable users to deliver to different parts of the world
-        // Object.keys(item.fields[field]).forEach(async locale => {
-        // we can be sure that there is a link if the field contains 'sys'
+      const fields = Object.keys(item.fields);
+      for (const field of fields) {
+        // if we've set a reference, we'll rectify it for every locale
         if ('references' in item.fields[field]) {
           const references = item.fields[field].references;
-          // set item.fields[field] to what the references correspond to
-          // set the locale, too
-          // we've got a reference, so go through it's locales
-
-          await Object.keys(item.fields[field].references).forEach(async refLocale => {
-            const refPromises = item.fields[field].references[refLocale].map(this.getByKey);
+          // fix references based on locale
+          const refLocales = Object.keys(references);
+          for (const refLocale of refLocales) {
+            const refPromises = references[refLocale].map(this.getByKey);
             const referees = await Promise.all(refPromises);
             item.fields[field][refLocale] = referees;
-            delete item.fields[field].references[refLocale];
-          });
+            delete references[refLocale];
+          }
+          delete item.fields[field].references;
         }
-      });
-    });
+      }
+    }
     return hierarchy;
   }
 }

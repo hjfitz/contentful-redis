@@ -9,5 +9,6 @@ module.exports = {
         "arrow-parens": [2, "as-needed"],
         "no-param-reassign": [2, { props: false }],
         "class-methods-use-this": 0,
+        "no-restricted-syntax": 0,
     },
 };
