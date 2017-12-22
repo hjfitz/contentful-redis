@@ -157,12 +157,6 @@ class ContentfulRedisWrapper {
     }
   }
 
-  async resolve({ 'redis-references': locales }) {
-    // underneath this object, we have all locales
-    // the aim is to keep them in one piece
-
-  }
-
   /**
    * Handle the references. If we're storing data, format it correctly.
    * Else, get the references from redis
@@ -179,9 +173,13 @@ class ContentfulRedisWrapper {
           for (const refKey of references) {
             // resolve the entry from redis
             const referee = await this.getByKey(refKey);
+            // attempt to recur and resolve deeper
+            if ('fields' in referee) await this.handleReferences(referee);
             unresolved.fields[key][locale] = referee;
           }
         }
+        // cleanup
+        delete unresolved.fields[key]['redis-references'];
       }
     }
     return unresolved;
