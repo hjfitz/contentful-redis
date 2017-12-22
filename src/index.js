@@ -168,6 +168,7 @@ class ContentfulRedisWrapper {
       if (hasRef) {
         const locales = unresolved.fields[key]['redis-references'];
         for (const locale in locales) {
+          unresolved.fields[key][locale] = [];
           const references = locales[locale];
           // even if there's one link, we store it in an array, for ease
           for (const refKey of references) {
@@ -175,7 +176,7 @@ class ContentfulRedisWrapper {
             const referee = await this.getByKey(refKey);
             // attempt to recur and resolve deeper
             if ('fields' in referee) await this.handleReferences(referee);
-            unresolved.fields[key][locale] = referee;
+            unresolved.fields[key][locale].push(referee);
           }
         }
         // cleanup
@@ -202,36 +203,19 @@ class ContentfulRedisWrapper {
   /**
    * 1. Get all of the entries from redis
    * 2. Go through all of those fields, and retrieve their references
-   * 3. Recur through the references and handle their references - TODO?
+   * 3. Recur through the references and handle their references
    */
   async getEntries() {
     log('Entering src/index.js@getEntries()');
     // get all keys, and then get data from redis based on these
     const allKeys = await this.getKeys('contentful:*');
-    const allPromises = allKeys.map(hierItem => this.getByKey(hierItem));
-    const hierarchy = await Promise.all(allPromises);
-
-    // attempt to resolve links
-    for (const item of hierarchy) {
-      log('Attempting to retrieve links per locale in src/index.js@getEntries()');
-      const { fields } = item;
-      // go through the fields. If a 'reference' field exists, handle that reference
-      for (const field in fields) {
-        // if we've set a reference, we'll rectify it for every locale
-        if ('references' in item.fields[field]) {
-          const references = item.fields[field].references;
-          // fix references based on locale
-          for (const refLocale in references) {
-            const refPromises = references[refLocale].map(this.getByKey);
-            const referees = await Promise.all(refPromises);
-            item.fields[field][refLocale] = referees;
-            delete references[refLocale];
-          }
-          delete item.fields[field].references;
-        }
-      }
-    }
-    return hierarchy;
+    const getPromises = allKeys.map(hierItem => this.getByKey(hierItem));
+    log('Attempting to resolve keys to entries in src/index.js@getEntries()');
+    const hierarchy = await Promise.all(getPromises);
+    log('Attempting to map handleReferences over all entries in src/index.js@getEntries()');
+    const resolutionPromises = hierarchy.map(hierItem => this.handleReferences(hierItem));
+    const resolvedHierarchy = await Promise.all(resolutionPromises);
+    return resolvedHierarchy;
   }
 }
 

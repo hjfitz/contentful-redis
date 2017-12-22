@@ -11,18 +11,29 @@ const level1 = '4QGBDFjIhGAC0CSOW2QgC4';
 const level2 = '4s4iIxjkMMECMg4wkMag42';
 const level3 = '5IzpeCscCWYc00uy6MqwUe';
 
-const main = async () => {
-  // first, sync. This is because we can't do it in the constructor
-  log('Syncing');
-  await testWrapper.sync();
+
+const testAll = async () => {
+  log('Getting all');
+  const all = await testWrapper.getEntries();
+  console.log(all);
+};
+
+const testSingle = async () => {
   // test getting a top level entry
   log('Getting item');
   const topLevel = await testWrapper.getEntry({ id: singleLevel1 });
   log('item GET');
   console.log(topLevel);
-  // const bottomLevel = await testWrapper.getEntry({ id: level1 });
-  // await testWrapper.getEntry({ id: level2 });
-  // await testWrapper.getEntry({ id: level3 });
+  const bottomLevel = await testWrapper.getEntry({ id: level1 });
+  await testWrapper.getEntry({ id: level2 });
+  await testWrapper.getEntry({ id: level3 });
+};
+
+const main = async () => {
+  // first, sync. This is because we can't do it in the constructor
+  log('Syncing');
+  await testWrapper.sync();
+  await testAll();
 };
 
 main();
