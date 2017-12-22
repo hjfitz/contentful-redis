@@ -3,7 +3,7 @@ const redis = require('redis');
 
 const redisHelper = require('./redis-promise-wrapper');
 const ContentfulRedisError = require('./wrapper-error');
-const util = require('./util');
+const { isGetter } = require('./util');
 const log = require('./logger')('[CONTENTFUL]');
 
 class ContentfulRedisWrapper {
@@ -51,9 +51,6 @@ class ContentfulRedisWrapper {
     this.getKeys = redisHelper.getKeys.bind(this);
     this.delKey = redisHelper.delKey.bind(this);
     this.delKeys = redisHelper.delKeys.bind(this);
-
-    // make sure to init() before doing anything else
-    Promise.resolve(this.sync());
   }
 
   // if it's the initial sync, don't bother with getting the token
@@ -78,6 +75,7 @@ class ContentfulRedisWrapper {
     if (deletedEntries.length > 0) await this.handleDeletions(deletedEntries);
     // format and store the (new) entries
     if (newEntries.length > 0) await this.handleEntries(newEntries);
+    log('Sync complete!');
   }
 
   /**
@@ -91,16 +89,17 @@ class ContentfulRedisWrapper {
     return `contentful:entry:${entryID}`;
   }
 
+  static reverseKey(key) {
+    return key.replace('contentful:entry:', '');
+  }
+
   /**
    * Given a list of deleted entries, delete those entries from redis
    * @param {Array} deletedEntries entries for deletion
    */
   async handleDeletions(deletedEntries) {
     log(`Formatting ${deletedEntries.length} items for deletion`);
-    const keysToDelete =
-      deletedEntries
-        .map(del => del.sys.id)
-        .map(this.formatKey);
+    const keysToDelete = deletedEntries.map(del => del.sys.id).map(this.formatKey);
     log('Attempting to delete items from Redis in src/index.js@handleDeletions()');
     await Promise.all(this.delKeys(keysToDelete));
   }
@@ -116,16 +115,23 @@ class ContentfulRedisWrapper {
    * After the referencing is handled, all of this is stored!
    * @param {Array<Object>} newItems New items to format and store
    */
-  handleEntries(newItems) {
+  async handleEntries(newItems) {
     log('Entering in src/index.js@handleEntries()');
-    newItems.forEach(item => {
+    for (const item of newItems) {
       // iterate through the fields
-      Object.keys(item.fields).forEach(field => {
+      const { fields } = item;
+      for (const field in fields) {
+        const locales = fields[field];
         // dive in to the locales
-        Object.keys(item.fields[field]).forEach(locale => {
-          // we know we have a reference, IF the field (and it's locales) are an array
-          // and IF it's a getter - contentful does this to reduce traffic - at the expense of a bit of computing power
-          const isReference = Array.isArray(item.fields[field][locale]) && util.isGetter(item.fields[field], locale);
+        for (const locale in locales) {
+          /**
+           * we know we have a reference, IF the field (and it's locales) are an array
+           *  and IF it's a getter
+           * contentful does this to reduce traffic - at the expense of a bit of computing power
+           */
+          const getter = isGetter(item.fields[field], locale);
+          const array = Array.isArray(item.fields[field][locale]);
+          const isReference = array && getter;
           // if it's a reference, we need to attempt to replace these
           if (isReference) {
             const keys = item.fields[field][locale].map(innerLinks => innerLinks.sys.id);
@@ -134,19 +140,21 @@ class ContentfulRedisWrapper {
             item.fields[field].references = newRefs;
             delete item.fields[field][locale];
           }
-        });
-      });
+        }
+      }
 
       // generate a key and store it in the store!
       const key = ContentfulRedisWrapper.formatKey({ id: item.sys.id });
-      log(`Attempting to store ${newItems.length} entries in src/index.js@handleEntries()`);
-      Promise.resolve(this.setKey(key, item)).then(() => {
-        log('Entries stored. src/index.js@handleEntries()');
-      }).catch(err => {
-        log('Error storing entries. src/index.js@handleEntries()');
+      log(`Attempting to store ${key} entries in src/index.js@handleEntries()`);
+      try {
+        await this.setKey(key, item);
+        log(`${key} stored. src/index.js@handleEntries()`);
+      } catch (err) {
+        log('Error storing entry. src/index.js@handleEntries()');
         console.error(err);
-      });
-    });
+        throw new ContentfulRedisError(err);
+      }
+    }
   }
 
   /**
@@ -181,15 +189,14 @@ class ContentfulRedisWrapper {
     // attempt to resolve links
     for (const item of hierarchy) {
       log('Attempting to retrieve links per locale in src/index.js@getEntries()');
-      const fields = Object.keys(item.fields);
+      const { fields } = item;
       // go through the fields. If a 'reference' field exists, handle that reference
-      for (const field of fields) {
+      for (const field in fields) {
         // if we've set a reference, we'll rectify it for every locale
         if ('references' in item.fields[field]) {
           const references = item.fields[field].references;
           // fix references based on locale
-          const refLocales = Object.keys(references);
-          for (const refLocale of refLocales) {
+          for (const refLocale in references) {
             const refPromises = references[refLocale].map(this.getByKey);
             const referees = await Promise.all(refPromises);
             item.fields[field][refLocale] = referees;
