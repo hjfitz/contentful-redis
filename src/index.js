@@ -137,7 +137,7 @@ class ContentfulRedisWrapper {
             const keys = item.fields[field][locale].map(innerLinks => innerLinks.sys.id);
             const redisKeys = keys.map(id => ContentfulRedisWrapper.formatKey({ id }));
             const newRefs = { [locale]: redisKeys };
-            item.fields[field].references = newRefs;
+            item.fields[field]['redis-references'] = newRefs;
             delete item.fields[field][locale];
           }
         }
@@ -157,22 +157,49 @@ class ContentfulRedisWrapper {
     }
   }
 
+  async resolve({ 'redis-references': locales }) {
+    // underneath this object, we have all locales
+    // the aim is to keep them in one piece
+
+  }
+
   /**
    * Handle the references. If we're storing data, format it correctly.
    * Else, get the references from redis
    * @param {Array<Object>} content should be a list of fields
    */
-  async handleReferences(content) {
-    // const { references } = content;
-    // const datastoreKeys = content.map(contentItem => contentItem.contentfulRef);
-    // console.log(references);
-    // const promises = datastoreKeys.map(this.getByKey);
-    // const data = await Promise.all(promises);
-    // return data;
+  async handleReferences(unresolved) {
+    for (const key in unresolved.fields) {
+      const hasRef = 'redis-references' in unresolved.fields[key];
+      if (hasRef) {
+        const locales = unresolved.fields[key]['redis-references'];
+        for (const locale in locales) {
+          const references = locales[locale];
+          // even if there's one link, we store it in an array, for ease
+          for (const refKey of references) {
+            // resolve the entry from redis
+            const referee = await this.getByKey(refKey);
+            unresolved.fields[key][locale] = referee;
+          }
+        }
+      }
+    }
+    return unresolved;
   }
 
-  // todo
-  async getEntry(entryOptions) { }
+  /**
+   * Get and resolve a single entry from our store
+   * @param {Object} entryOptions Options passed - should mirror contentful
+   */
+  async getEntry(entryOptions) {
+    const { id } = entryOptions;
+    // format the ID in to something that the store will recognise
+    const formatted = ContentfulRedisWrapper.formatKey({ id });
+    const entry = await this.getByKey(formatted);
+    // recur and find all links
+    const resolved = await this.handleReferences(entry);
+    return resolved;
+  }
 
   /**
    * 1. Get all of the entries from redis

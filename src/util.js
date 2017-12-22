@@ -1,6 +1,4 @@
-const isGetter = (obj, prop) => !!Object.getOwnPropertyDescriptor(obj, prop).get;
-
 module.exports = {
-  isGetter,
+  isGetter: (obj, prop) => !!Object.getOwnPropertyDescriptor(obj, prop).get,
 };
 
