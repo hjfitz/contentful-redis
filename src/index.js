@@ -56,7 +56,6 @@ class ContentfulRedisWrapper {
   // if it's the initial sync, don't bother with getting the token
   // else, use that token
   async sync() {
-    this.delKey('contentful:syncToken');
     let resp;
     if (this.initialSync) {
       log('Beginning initial sync in src/index.js@sync()');
@@ -69,7 +68,6 @@ class ContentfulRedisWrapper {
     }
     log('Setting next sync token in src/index.js@sync()');
     this.setKey('contentfulSyncToken', resp.nextSyncToken);
-    log('Sync complete');
     const { deletedEntries, entries: newEntries } = await resp;
     // delete the everything old from the response
     if (deletedEntries.length > 0) await this.handleDeletions(deletedEntries);
@@ -87,10 +85,6 @@ class ContentfulRedisWrapper {
     const entryID = entry.id || entry.entry.sys.id;
     // todo: figure out how to store content type
     return `contentful:entry:${entryID}`;
-  }
-
-  static reverseKey(key) {
-    return key.replace('contentful:entry:', '');
   }
 
   /**
@@ -117,6 +111,7 @@ class ContentfulRedisWrapper {
    */
   async handleEntries(newItems) {
     log('Entering in src/index.js@handleEntries()');
+    // need to split references of each item
     for (const item of newItems) {
       // iterate through the fields
       const { fields } = item;
@@ -191,6 +186,7 @@ class ContentfulRedisWrapper {
    * @param {Object} entryOptions Options passed - should mirror contentful
    */
   async getEntry(entryOptions) {
+    await this.sync();
     const { id } = entryOptions;
     // format the ID in to something that the store will recognise
     const formatted = ContentfulRedisWrapper.formatKey({ id });
@@ -206,6 +202,7 @@ class ContentfulRedisWrapper {
    * 3. Recur through the references and handle their references
    */
   async getEntries() {
+    await this.sync();
     log('Entering src/index.js@getEntries()');
     // get all keys, and then get data from redis based on these
     const allKeys = await this.getKeys('contentful:*');
