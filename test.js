@@ -31,12 +31,18 @@ const testSingle = async () => {
   console.log(bottomLevel);
 };
 
+const testMany = async () => {
+  const many = await testWrapper.getEntries([level1, level2]);
+  console.log(many);
+}
+
 const main = async () => {
   // first, sync. This is because we can't do it in the constructor
   log('Syncing');
   // await testWrapper.sync();
   // await testAll();
-  await testSingle();
+  // await testSingle();
+  await testMany();
 };
 
 main();

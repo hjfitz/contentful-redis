@@ -201,9 +201,20 @@ class ContentfulRedisWrapper {
    * 2. Go through all of those fields, and retrieve their references
    * 3. Recur through the references and handle their references
    */
-  async getEntries() {
+  async getEntries(entries) {
     await this.sync();
     log('Entering src/index.js@getEntries()');
+    if (entries) {
+      log('Attempting to resolve a list in src/index.js@getEntries()');
+      const keys = entries.map(entry => ContentfulRedisWrapper.formatKey({ id: entry }));
+      const getPromises = keys.map(key => this.getByKey(key));
+      log('Resolving redis promises in src/index.js@getEntries()');
+      const topLevels = await Promise.all(getPromises);
+      const resolvedLevelsProm = topLevels.map(entry => this.handleReferences(entry));
+      log('Resolving levels of links in src/index.js@getEntries()');
+      const resolvedEntries = await Promise.all(resolvedLevelsProm);
+      return resolvedEntries;
+    }
     // get all keys, and then get data from redis based on these
     const allKeys = await this.getKeys('contentful:*');
     const getPromises = allKeys.map(hierItem => this.getByKey(hierItem));
