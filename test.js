@@ -16,7 +16,7 @@ const level3 = '5IzpeCscCWYc00uy6MqwUe';
 const testAll = async () => {
   log('Getting all');
   const all = await testWrapper.getEntries();
-  // console.log(all);
+  console.log(all);
 };
 
 const testSingle = async () => {
@@ -24,19 +24,19 @@ const testSingle = async () => {
   log('Getting item');
   const topLevel = await testWrapper.getEntry({ id: singleLevel1 });
   log('item GET');
-  console.log(topLevel);
+  // console.log(topLevel);
   const topLevelManyRef = await testWrapper.getEntry({ id: level1 });
   const midLevel = await testWrapper.getEntry({ id: level2 });
   const bottomLevel = await testWrapper.getEntry({ id: level3 });
-  console.log(bottomLevel);
+  // console.log(bottomLevel);
 };
 
 const main = async () => {
   // first, sync. This is because we can't do it in the constructor
   log('Syncing');
-  // await testWrapper.sync();
-  // await testAll();
-  await testSingle();
+  await testWrapper.sync();
+  await testAll();
+  // await testSingle();
 };
 
 main();

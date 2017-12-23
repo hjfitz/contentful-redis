@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "es6",
+    "allowSyntheticDefaultImports": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "moduleResolution": "node",
+    "noImplicitReturns": true,
+    "noImplicitAny": true
+  },
+  "exclude": ["node_modules"],
+  "files": ["lib/contentful-redis.ts"]
+}
