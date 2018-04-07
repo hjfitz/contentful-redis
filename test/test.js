@@ -1,6 +1,6 @@
 /* eslint-disable */
-const Wrapper = require('./src');
-const log = require('./src/logger')('[TEST]');
+const Wrapper = require('../src');
+const log = (...msgs) => console.log('[TEST]', ...msgs);
 
 const testWrapper = new Wrapper({
   space: 'w4av3iw5muqd',

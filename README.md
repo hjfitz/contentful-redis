@@ -1,9 +1,19 @@
 # Redis Cache for Contentful
-Redis cache for Contentful, built using the Sync API. 
-By default, this library resolves all links to the deepest level by default. 
+> Redis cache for Contentful, built using the Sync API. 
 
-## Usage
-You'll need a redis store running.
+Contentful is a fantastic tool. It has a great API and fantastic SDKs. The only issue with it is that API responses can take up to 750ms!
+
+Caching all of your entries on your server means that not only do you have a quicker API response - you've also got a contentful backup on your server!
+
+## Features
+* Uses Sync API
+  * The preview API isn't supported by the Sync API! Delivery only.
+* Resolves deep contentful links on sync
+* On next sync, links are also resolved!
+
+## Prerequisites
+* Contentful Space/Access keys
+* A redis server
 
 #### Create the wrapper
 This has a syntax similar to the original Contentful JS client.
@@ -39,13 +49,5 @@ const allEntries = await client.getEntries();
 console.log(allEntries); // EVERYTHING stored in redis
 ```
 
-## Motivation 
-Having used Contentful in production, I'd noticed that performance can be less than ideal - sometimes taking up to 500ms for a request! (That is, client -> server -> contentful -> server -> client). Moving this to a key-value store significantly improves performance (benchmarks to come soon). It also provides an extra level of redundancy.
-
-## Todo
-* ~~storage in redis~~
-* ~~basic addition and deletion via sync api~~
-* ~~link handling~~
-* ~~link handling for multiple locales~~
-* ~~handling of deep references~~
-* Testing
+## Debugging
+Run your server with `DEBUG=contentful-redis node $app`

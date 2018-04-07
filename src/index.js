@@ -1,10 +1,10 @@
 const contentful = require('contentful');
 const redis = require('redis');
+const log = require('debug')('contentful-redis');
 
 const redisHelper = require('./redis-promise-wrapper');
 const ContentfulRedisError = require('./wrapper-error');
 const { isGetter } = require('./util');
-const log = require('./logger')('[CONTENTFUL]');
 
 class ContentfulRedisWrapper {
   constructor(ContentfulRedisOptions) {

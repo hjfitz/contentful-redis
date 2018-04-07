@@ -1,6 +1,6 @@
 {
   "name": "contentful-redis",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Redis cache for Contentful",
   "main": "src/index.js",
   "repository": "https://github.com/hjfitz/contentful-redis",
@@ -9,6 +9,7 @@
   "dependencies": {
     "chalk": "^2.1.0",
     "contentful": "^4.6.1",
+    "debug": "^3.1.0",
     "redis": "^2.8.0"
   },
   "scripts": {
